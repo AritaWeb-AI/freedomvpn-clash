@@ -34,3 +34,19 @@ proxies:
       path: /vless
       headers:
         Host: freedomvpn
+
+proxy-groups:
+  - name: "FreedomVPN"
+    type: select
+    proxies:
+      - FreedomVPN-V2Ray
+      - FreedomVPN-SS
+      - FreedomVPN-VLESS
+      - DIRECT
+
+rules:
+  - DOMAIN-SUFFIX,google.com,FreedomVPN
+  - DOMAIN-KEYWORD,netflix,FreedomVPN
+  - GEOIP,CN,DIRECT
+  - MATCH,FreedomVPN
+
