@@ -136,11 +136,6 @@ icacls "$env:USERPROFILE\.ssh\id_ed25519" /remove:g Everyone
 
 **Windows (PowerShell):**
 ```powershell
-Test-Path "$env:USERPROFILE\.ssh\id_ed25519"
-```
-
-**Windows (PowerShell):**
-```powershell
 ssh -i "$env:USERPROFILE\.ssh\id_ed25519" root@84.247.155.221
 ```
 
