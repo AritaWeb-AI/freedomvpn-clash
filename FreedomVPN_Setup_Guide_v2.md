@@ -153,7 +153,7 @@ chmod 600 /root/.ssh/authorized_keys
 
 Example (UK):
 ```powershell
-ssh -i $env:USERPROFILE\.ssh\freedomvpn_ed25519 root@94.72.109.67
+ssh -i "$env:USERPROFILE\.ssh\id_ed25519" root@<IP Address>
 ```
 
 You should see:
