@@ -120,6 +120,29 @@ ssh-keygen -y -f ~/.ssh/id_ed25519
 
 Copy the output and paste it into the VM’s `authorized_keys`.
 
+### 2.5 Fix SSH key error
+
+**Windows (PowerShell):**
+```powershell
+Test-Path "$env:USERPROFILE\.ssh\id_ed25519"
+```
+
+**Windows (PowerShell):**
+```powershell
+icacls "$env:USERPROFILE\.ssh\id_ed25519" /inheritance:r
+icacls "$env:USERPROFILE\.ssh\id_ed25519" /grant:r "$env:USERNAME:RX" "Administrators:F" "SYSTEM:F"
+icacls "$env:USERPROFILE\.ssh\id_ed25519" /remove:g Everyone
+```
+
+**Windows (PowerShell):**
+```powershell
+Test-Path "$env:USERPROFILE\.ssh\id_ed25519"
+```
+
+**Windows (PowerShell):**
+```powershell
+ssh -i "$env:USERPROFILE\.ssh\id_ed25519" root@84.247.155.221
+```
 
 ---
 
