@@ -1,0 +1,25 @@
+@"
+# secrets
+.env
+*.env
+.fvpn/
+**/state.json
+
+# keys
+**/*id_ed25519*
+**/*.pem
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+fvpn/
+
+# logs
+*.log
+
+# yaml outputs (optional)
+www/freedom.yaml
+freedom.yaml
+"@ | Out-File -Encoding utf8 .gitignore

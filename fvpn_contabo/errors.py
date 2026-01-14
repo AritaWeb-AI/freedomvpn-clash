@@ -1,0 +1,2 @@
+class FVPNError(Exception):
+    pass

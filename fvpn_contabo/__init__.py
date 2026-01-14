@@ -1,0 +1,1 @@
+# FreedomVPN Contabo automation package
