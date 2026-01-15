@@ -13,6 +13,7 @@ import re
 import secrets
 import string
 import socket
+import subprocess
 
 from .bootstrap import bootstrap_xray
 from .contabo_api import ContaboClient
@@ -27,6 +28,43 @@ from .yaml_clash import write_yaml, scan_last_numbers_from_yaml
 def tcp_check(ip: str, port: int, timeout: int = 5) -> None:
     with socket.create_connection((ip, port), timeout=timeout):
         return
+    
+def _run_repair_script(
+    node_name: str,
+    ip: str,
+    yaml_path: str,
+    ss_password: str,
+    vmess_uuid: str,
+    extra_flags: List[str],
+) -> None:
+    """
+    Calls repo-root repair_and_publish.py using the current Python (venv-safe).
+    """
+    repo_root = Path(__file__).resolve().parents[1]
+    script = repo_root / "repair_and_publish.py"
+    if not script.exists():
+        raise RuntimeError(f"repair_and_publish.py not found at: {script}")
+
+    cmd = [
+        sys.executable,
+        str(script),
+        "--name", node_name,
+        "--ip", ip,
+        "--yaml", str(Path(yaml_path).resolve()),
+        "--dotenv", r".\.env",
+        "--ss-password", ss_password,
+        "--vmess-uuid", vmess_uuid,
+        *extra_flags,
+    ]
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+    if p.returncode != 0:
+        raise RuntimeError(
+            "repair_and_publish failed\n"
+            f"cmd: {' '.join(cmd)}\n"
+            f"exit: {p.returncode}\n"
+            f"stdout:\n{p.stdout}\n"
+            f"stderr:\n{p.stderr}\n"
+        )
 
 
 REGIONS = ["EU", "UK", "JPN", "SIN", "US-central", "US-east", "US-west", "AUS", "IND"]
@@ -372,17 +410,27 @@ def main() -> None:
             set_hostname(ip, display_name)
 
             vmess_uuid = args.vmess_uuid.strip() or str(uuid.uuid4())
-            bootstrap_xray(ip, args.ss_password.strip(), vmess_uuid, installer_url)
 
             try:
+                bootstrap_xray(ip, args.ss_password.strip(), vmess_uuid, installer_url)
+
                 tcp_check(ip, 10101)
-            except Exception as e:
-                raise RuntimeError(f"{display_name} TCP 10101 failed from outside: {ip}:10101 ({e})")
-
-            try:
                 tcp_check(ip, 10105)
+
             except Exception as e:
-                raise RuntimeError(f"{display_name} TCP 10105 failed from outside: {ip}:10105 ({e})")
+                log.info(f"{display_name}: bootstrap/port-check failed ({e}). Running repair_and_publish --skip-yaml ...")
+                _run_repair_script(
+                    node_name=display_name,
+                    ip=ip,
+                    yaml_path=args.yaml_out,
+                    ss_password=args.ss_password.strip(),
+                    vmess_uuid=vmess_uuid,
+                    extra_flags=["--skip-yaml", "--force"],
+                )
+
+                # Re-check from outside after repair
+                tcp_check(ip, 10101)
+                tcp_check(ip, 10105)
 
 
             created_nodes.append(Node(
@@ -399,6 +447,21 @@ def main() -> None:
         template_path = (args.yaml_template.strip() or args.yaml_out).strip()
         write_yaml(created_nodes, out_path=args.yaml_out, template_path=template_path, group_name=args.group_name)
         log.ok(f"YAML updated (overwrite + backups): {args.yaml_out}")
+
+        # Publish the updated YAML to subscription server via SCP (if SUB_SERVER_HOST is set in .env)
+        if created_nodes:
+            last = created_nodes[-1]
+            log.info("Publishing YAML to subscription server (repair_and_publish --publish-only) ...")
+            _run_repair_script(
+                node_name=last.name,
+                ip=last.ip,
+                yaml_path=args.yaml_out,
+                ss_password=last.ss_password,
+                vmess_uuid=last.vmess_uuid,
+                extra_flags=["--publish-only", "--force"],
+            )
+            log.ok("Publish OK ✅")
+
 
         if not args.quiet:
             print("\n🎉 Done. Created VMs:")
