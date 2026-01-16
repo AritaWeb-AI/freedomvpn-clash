@@ -129,6 +129,44 @@ def _inject_into_proxies(template_proxies: str, region_header: str, insert_text:
     return left + insert_text + "\n" + right
 
 
+def _remove_group(after_block: str, name: str) -> str:
+    """Remove a proxy-group by exact name from the proxy-groups section text."""
+    pat = rf'^\s*-\s*name:\s*\"{re.escape(name)}\"\s*$'
+    m = re.search(pat, after_block, flags=re.MULTILINE)
+    if not m:
+        return after_block
+
+    start = m.start()
+    m2 = re.search(r"^\s*-\s*name:\s*\".*\"\s*$", after_block[m.end():], flags=re.MULTILINE)
+    end = m.end() + (m2.start() if m2 else len(after_block[m.end():]))
+    return after_block[:start] + after_block[end:]
+
+
+def _remove_proxy_entries_from_group(group_block: str, remove_names: List[str]) -> str:
+    """Remove specific proxy entries (e.g., 'Auto') from a group's proxies list."""
+    lines = group_block.splitlines(True)
+    out: List[str] = []
+    in_list = False
+    for ln in lines:
+        if re.match(r"^\s*proxies:\s*$", ln):
+            in_list = True
+            out.append(ln)
+            continue
+        if in_list:
+            m = re.match(r'^\s*-\s*\"?(.*?)\"?\s*$', ln)
+            if m:
+                name = m.group(1)
+                if name in remove_names:
+                    continue
+                out.append(ln)
+                continue
+            in_list = False
+            out.append(ln)
+            continue
+        out.append(ln)
+    return "".join(out)
+
+
 def _add_to_group_list(group_block: str, new_names: List[str]) -> str:
     lines = group_block.splitlines(True)
     out: List[str] = []
@@ -175,15 +213,16 @@ def _update_proxy_groups(after_block: str, new_names: List[str], group_name: str
 
     span, block = extract_group(after_block, group_name)
     if span and block:
+        # Ensure the main group does not reference Auto groups.
+        block = _remove_proxy_entries_from_group(block, ["Auto", "Auto (Latency Test)"])
         updated = _add_to_group_list(block, new_names)
         after_block = after_block[: span[0]] + updated + after_block[span[1] :]
-
-    span2, block2 = extract_group(after_block, "Auto (Latency Test)")
-    if span2 and block2:
-        updated2 = _add_to_group_list(block2, new_names)
-        after_block = after_block[: span2[0]] + updated2 + after_block[span2[1] :]
+    # Drop Auto groups entirely (we want everything under the main select group).
+    after_block = _remove_group(after_block, "Auto")
+    after_block = _remove_group(after_block, "Auto (Latency Test)")
 
     return after_block
+
 
 
 def update_freedom_yaml(template_text: str, nodes: List[Node], group_name: str = "Freedom VPN") -> str:

@@ -1,0 +1,206 @@
+mixed-port: 7890
+allow-lan: true
+mode: rule
+log-level: info
+ipv6: true
+
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  nameserver:
+    - 1.1.1.1
+    - 8.8.8.8
+  fallback:
+    - tls://1.1.1.1:853
+    - tls://8.8.8.8:853
+  fallback-filter:
+    geoip: true
+
+proxies:
+  - name: "SG-01 SS"
+    type: ss
+    server: 194.233.73.138
+    port: 10105
+    cipher: aes-256-gcm
+    password: "/1EkYmmah9R8Jl8aRUbEU8BsN0N7ge/O"
+    udp: true
+  - name: "SG-01 VMess"
+    type: vmess
+    server: 194.233.73.138
+    port: 10101
+    uuid: "41389cdd-c7c8-4202-8cf6-f99887664046"
+    alterId: 0
+    cipher: auto
+    udp: true
+  - name: "UK-01 SS"
+    type: ss
+    server: 94.72.109.67
+    port: 10105
+    cipher: aes-256-gcm
+    password: "/1EkYmmah9R8Jl8aRUbEU8BsN0N7ge/O"
+    udp: true
+  - name: "UK-01 VMess"
+    type: vmess
+    server: 94.72.109.67
+    port: 10101
+    uuid: "41389cdd-c7c8-4202-8cf6-f99887664046"
+    alterId: 0
+    cipher: auto
+    udp: true
+  - name: "UK-02 SS"
+    type: ss
+    server: 81.0.218.83
+    port: 10105
+    cipher: aes-256-gcm
+    password: "/1EkYmmah9R8Jl8aRUbEU8BsN0N7ge/O"
+    udp: true
+  - name: "UK-02 VMess"
+    type: vmess
+    server: 81.0.218.83
+    port: 10101
+    uuid: "41389cdd-c7c8-4202-8cf6-f99887664046"
+    alterId: 0
+    cipher: auto
+    udp: true
+  - name: "EU-01 SS"
+    type: ss
+    server: 167.86.113.194
+    port: 10105
+    cipher: aes-256-gcm
+    password: "/1EkYmmah9R8Jl8aRUbEU8BsN0N7ge/O"
+    udp: true
+  - name: "EU-01 VMess"
+    type: vmess
+    server: 167.86.113.194
+    port: 10101
+    uuid: "41389cdd-c7c8-4202-8cf6-f99887664046"
+    alterId: 0
+    cipher: auto
+    udp: true
+  - name: "EU-02 SS"
+    type: ss
+    server: 185.185.83.103
+    port: 10105
+    cipher: aes-256-gcm
+    password: "/1EkYmmah9R8Jl8aRUbEU8BsN0N7ge/O"
+    udp: true
+  - name: "EU-02 VMess"
+    type: vmess
+    server: 185.185.83.103
+    port: 10101
+    uuid: "41389cdd-c7c8-4202-8cf6-f99887664046"
+    alterId: 0
+    cipher: auto
+    udp: true
+  - name: "JP-01 SS"
+    type: ss
+    server: 84.247.155.221
+    port: 10105
+    cipher: aes-256-gcm
+    password: "/1EkYmmah9R8Jl8aRUbEU8BsN0N7ge/O"
+    udp: true
+  - name: "JP-01 VMess"
+    type: vmess
+    server: 84.247.155.221
+    port: 10101
+    uuid: "41389cdd-c7c8-4202-8cf6-f99887664046"
+    alterId: 0
+    cipher: auto
+    udp: true
+
+  # ========= Singapore =========
+  - name: "SG-02 SS"
+    type: ss
+    server: 147.93.156.182
+    port: 10105
+    cipher: aes-256-gcm
+    password: "/1EkYmmah9R8Jl8aRUbEU8BsN0N7ge/O"
+    udp: true
+
+  - name: "SG-02 VMess"
+    type: vmess
+    server: 147.93.156.182
+    port: 10101
+    uuid: "41389cdd-c7c8-4202-8cf6-f99887664046"
+    alterId: 0
+    cipher: auto
+    udp: true
+
+  - name: "SG-03 SS"
+    type: ss
+    server: 154.26.134.142
+    port: 10105
+    cipher: aes-256-gcm
+    password: "/1EkYmmah9R8Jl8aRUbEU8BsN0N7ge/O"
+    udp: true
+
+  - name: "SG-03 VMess"
+    type: vmess
+    server: 154.26.134.142
+    port: 10101
+    uuid: 41389cdd-c7c8-4202-8cf6-f99887664046
+    alterId: 0
+    cipher: auto
+    udp: true
+
+    tls: false
+    network: tcp
+
+  # ========= EU =========
+  - name: "EU-03 SS"
+    type: ss
+    server: 194.163.178.95
+    port: 10105
+    cipher: aes-256-gcm
+    password: "/1EkYmmah9R8Jl8aRUbEU8BsN0N7ge/O"
+    udp: true
+
+  - name: "EU-03 VMess"
+    type: vmess
+    server: 194.163.178.95
+    port: 10101
+    uuid: "8179a858-0844-4843-897c-b6ab59eac66c"
+    alterId: 0
+    cipher: auto
+    udp: true
+    tls: false
+    network: tcp
+proxy-groups:
+  - name: "Freedom VPN"
+    type: select
+    proxies:
+      - Auto
+      - "SG-01 VMess"
+      - "UK-01 VMess"
+      - "UK-02 VMess"
+      - "EU-01 VMess"
+      - "EU-02 VMess"
+      - "JP-01 VMess"
+      - "SG-01 SS"
+      - "UK-01 SS"
+      - "UK-02 SS"
+      - "EU-01 SS"
+      - "EU-02 SS"
+      - "JP-01 SS"
+      - "SG-02 SS"
+      - "SG-02 VMess"
+      - "EU-03 SS"
+      - "EU-03 VMess"
+  - name: "Auto"
+    type: url-test
+    url: "http://www.gstatic.com/generate_204"
+    interval: 300
+    proxies:
+      - "SG-01 VMess"
+      - "UK-01 VMess"
+      - "UK-02 VMess"
+      - "EU-01 VMess"
+      - "EU-02 VMess"
+      - "JP-01 VMess"
+      - "SG-03 SS"
+      - "SG-03 VMess"
+
+rules:
+  - MATCH,Freedom VPN

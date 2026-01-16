@@ -28,6 +28,126 @@ from .yaml_clash import write_yaml, scan_last_numbers_from_yaml
 def tcp_check(ip: str, port: int, timeout: int = 5) -> None:
     with socket.create_connection((ip, port), timeout=timeout):
         return
+
+
+def _load_dotenv_into_environ(dotenv_path: Path) -> None:
+    """Minimal .env loader (no dependency).
+
+    Note: Windows does NOT auto-load .env for subprocesses or python -c.
+    We populate os.environ (only for missing keys) so Kuma + other helpers
+    can rely on os.getenv().
+    """
+    try:
+        if not dotenv_path.exists():
+            return
+        for raw in dotenv_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k = k.strip()
+            v = v.strip().strip('"').strip("'")
+            if not k:
+                continue
+            os.environ.setdefault(k, v)
+    except Exception:
+        # Never hard-fail due to dotenv parsing.
+        return
+
+
+def _parse_int_csv(csv: str) -> List[int]:
+    out: List[int] = []
+    for part in (csv or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            out.append(int(part))
+        except ValueError:
+            continue
+    return out
+
+
+def _ensure_kuma_monitors(node_name: str, ip: str, log: Logger) -> None:
+    """Create Uptime Kuma monitors for a node (idempotent).
+
+    Works with uptime-kuma-api==1.2.1 where the monitor type for TCP checks is "port".
+    Controlled by env:
+      - KUMA_ENABLED=1/0
+      - KUMA_URL, KUMA_USER, KUMA_PASS
+      - KUMA_SSL_VERIFY=1/0
+      - KUMA_NOTIFICATION_IDS=1,2,3 (optional)
+    """
+    if os.getenv("KUMA_ENABLED", "1").strip() not in ("1", "true", "True", "YES", "yes"):
+        return
+
+    kuma_url = (os.getenv("KUMA_URL") or "").strip()
+    kuma_user = (os.getenv("KUMA_USER") or "").strip()
+    kuma_pass = (os.getenv("KUMA_PASS") or "").strip()
+    ssl_verify = (os.getenv("KUMA_SSL_VERIFY", "1").strip() in ("1", "true", "True", "YES", "yes"))
+    notif_csv = (os.getenv("KUMA_NOTIFICATION_IDS") or "").strip()
+    notif_ids = _parse_int_csv(notif_csv) if notif_csv else []
+
+    if not (kuma_url and kuma_user and kuma_pass):
+        # Kuma not configured; skip silently.
+        return
+
+    try:
+        from uptime_kuma_api import UptimeKumaApi  # type: ignore
+    except Exception as e:
+        log.info(f"[kuma] uptime-kuma-api not available ({e}). Skipping Kuma monitors.")
+        return
+
+    def _int(x, default=0):
+        try:
+            return int(x)
+        except Exception:
+            return default
+
+    def _find_existing(monitors: List[dict], host: str, port: int, name: str) -> dict | None:
+        for m in monitors:
+            if str(m.get("hostname", "")) == host and _int(m.get("port"), -1) == int(port):
+                return m
+        for m in monitors:
+            if str(m.get("name", "")) == name:
+                return m
+        return None
+
+    def _ensure_one(api: "UptimeKumaApi", mon_name: str, host: str, port: int) -> None:
+        monitors = api.get_monitors()
+        existing = _find_existing(monitors, host, port, mon_name)
+
+        payload = {
+            "type": "port",  # uptime-kuma-api==1.2.1 expects "port" (Kuma's Port monitor)
+            "name": mon_name,
+            "hostname": host,
+            "port": int(port),
+            "interval": 60,
+            "retryInterval": 60,
+        }
+        if notif_ids:
+            payload["notificationIDList"] = notif_ids
+
+        if existing is None:
+            api.add_monitor(**payload)
+            log.ok(f"[kuma] added {mon_name} -> {host}:{port}")
+        else:
+            # Optional: keep it up to date without duplicating
+            try:
+                api.edit_monitor(int(existing["id"]), **payload)
+            except Exception:
+                pass
+            log.info(f"[kuma] exists {mon_name} -> {host}:{port}")
+
+    try:
+        with UptimeKumaApi(kuma_url, ssl_verify=ssl_verify) as api:
+            api.login(kuma_user, kuma_pass)
+            _ensure_one(api, f"{node_name}-10101", ip, 10101)
+            _ensure_one(api, f"{node_name}-10105", ip, 10105)
+    except Exception as e:
+        log.info(f"[kuma] skipped/failed for {node_name} ({ip}): {e}")
     
 def _run_repair_script(
     node_name: str,
@@ -185,6 +305,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     log = Logger(quiet=args.quiet, debug=args.debug)
+
+    # Make sure .env values are available via os.getenv() (Windows-friendly)
+    repo_root = Path(__file__).resolve().parents[1]
+    _load_dotenv_into_environ(repo_root / ".env")
 
     try:
         st = load_settings_from_env()
@@ -417,6 +541,9 @@ def main() -> None:
                 tcp_check(ip, 10101)
                 tcp_check(ip, 10105)
 
+                # Auto-add this node to Uptime Kuma after ports are confirmed
+                _ensure_kuma_monitors(display_name, ip, log)
+
             except Exception as e:
                 log.info(f"{display_name}: bootstrap/port-check failed ({e}). Running repair_and_publish --skip-yaml ...")
                 _run_repair_script(
@@ -431,6 +558,9 @@ def main() -> None:
                 # Re-check from outside after repair
                 tcp_check(ip, 10101)
                 tcp_check(ip, 10105)
+
+                # Auto-add this node to Uptime Kuma after repair + port checks
+                _ensure_kuma_monitors(display_name, ip, log)
 
 
             created_nodes.append(Node(

@@ -154,7 +154,7 @@ def _insert_proxy_blocks(yaml_text: str, node_name: str, ip: str, ss_password: s
     return txt
 
 
-def repair_server(ip: str, ss_password: str, vmess_uuid: str) -> None:
+def repair_server(node_name: str, ip: str, ss_password: str, vmess_uuid: str) -> None:
     root_at_ip = f"root@{ip}"
 
     remote = r"""
@@ -218,6 +218,16 @@ ufw status || true
 
     print(out.strip())
 
+    # --- Uptime Kuma: auto-create monitors after ports are confirmed ---
+    # Uses the VM node name (e.g. SG-03) for consistent monitor naming.
+    try:
+        from fvpn_contabo.kuma_client import ensure_vm_monitors
+        ensure_vm_monitors(node_name, ip)
+        print(f"[kuma] monitors ensured for {node_name} ({ip})")
+    except Exception as e:
+        print(f"[kuma] skipped/failed: {e}")
+
+
 
 def update_yaml(yaml_path: Path, node_name: str, ip: str, ss_password: str, vmess_uuid: str) -> Path:
     yaml_text = yaml_path.read_text(encoding="utf-8", errors="ignore")
@@ -237,7 +247,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Repair incomplete VM (bootstrap xray+ufw) then publish into freedom.yaml.")
     ap.add_argument("--name", help="Node name like SG-03 / EU-04", default=None)
     ap.add_argument("--ip", help="Public IP", default=None)
-    ap.add_argument("--yaml", help="Path to freedom.yaml", default=r"H:\Projects\FreedomeVPN\www\freedom.yaml")
+    ap.add_argument("--yaml", help="Path to freedom.yaml", default=r"H:\Projects\FreedomeVPN\cantabo\www\freedom.yaml")
     ap.add_argument("--dotenv", help="Path to .env", default=r".\.env")
     ap.add_argument("--ss-password", help="Override SS_PASSWORD (else from .env)", default=None)
     ap.add_argument("--vmess-uuid", help="Override VMESS_UUID (else from .env)", default=None)
@@ -253,6 +263,10 @@ def main() -> int:
 
     env_file = Path(args.dotenv)
     env = _load_dotenv(env_file)
+
+    # Make .env values available to downstream helpers (e.g. Uptime Kuma client).
+    for k, v in env.items():
+        os.environ.setdefault(k, v)
 
     ss_password = args.ss_password or env.get("SS_PASSWORD")
     vmess_uuid = args.vmess_uuid or env.get("VMESS_UUID")
@@ -270,7 +284,7 @@ def main() -> int:
 
     if not args.publish_only:
         print(f"== Repairing server {ip} ...")
-        repair_server(ip=ip, ss_password=ss_password, vmess_uuid=vmess_uuid)
+        repair_server(node_name=node_name, ip=ip, ss_password=ss_password, vmess_uuid=vmess_uuid)
 
 
     backup = None
